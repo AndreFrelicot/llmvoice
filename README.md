@@ -37,7 +37,7 @@ LLMVoice combines Apple's latest speech recognition APIs with on-device LLM infe
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/LLMVoice.git
+   git clone https://github.com/AndreFrelicot/llmvoice.git
    cd LLMVoice
    ```
 
