@@ -10,7 +10,7 @@ LLMVoice combines Apple's latest speech recognition APIs with on-device LLM infe
 
 - **Real-time Transcription**: Progressive speech-to-text using iOS 26's SpeechTranscriber
 - **Multi-language Support**: Transcribe in English, Spanish, French, German, Italian, Portuguese, and more
-- **On-device LLM**: Summarize transcriptions using MLX-powered models (Qwen, Llama, Phi)
+- **On-device LLM**: Summarize transcriptions using MLX-powered models (Qwen, Gemma, Llama)
 - **Streaming Generation**: Watch AI summaries appear token-by-token with live metrics
 - **Apple Intelligence Fallback**: Uses Apple's Writing Tools API when available
 - **Model Management**: Download and manage multiple LLM models
@@ -72,8 +72,10 @@ LLMVoice/
 
 ## Supported Models
 
-- **Qwen 2.5** (0.5B) - 150MB, 29+ languages, 32k context - Recommended
+- **Qwen 3** (0.6B) - 335MB, 100+ languages, 32k context - Recommended
+- **Qwen 2.5** (0.5B) - 150MB, 29+ languages, 32k context
 - **Gemma 3** (1B) - 300MB, 140+ languages, 32k context
+- **Gemma 3 QAT** (1B) - 733MB, 140+ languages, quantization-aware trained 4-bit model
 - **Llama 3.2** (1B) - 500MB, 8 languages
 - Custom MLX-compatible models via Hugging Face
 

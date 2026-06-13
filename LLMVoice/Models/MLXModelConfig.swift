@@ -11,7 +11,9 @@ import Foundation
 enum MLXModel: String, CaseIterable, Identifiable, Codable {
     case appleIntelligence = "apple-intelligence"
     case gemma3_1b = "gemma-3-1b"
+    case gemma3_1b_qat = "gemma-3-1b-qat"
     case qwen25_05b = "qwen2.5-0.5b"
+    case qwen3_06b = "qwen3-0.6b"
     case llama32_1b = "llama-3.2-1b"
 
     var id: String { rawValue }
@@ -21,7 +23,7 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .appleIntelligence:
             return false
-        case .gemma3_1b, .qwen25_05b, .llama32_1b:
+        case .gemma3_1b, .gemma3_1b_qat, .qwen25_05b, .qwen3_06b, .llama32_1b:
             return true
         }
     }
@@ -33,8 +35,12 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
             return "Apple Intelligence"
         case .gemma3_1b:
             return "Gemma 3 (1B)"
+        case .gemma3_1b_qat:
+            return "Gemma 3 QAT (1B)"
         case .qwen25_05b:
             return "Qwen2.5 (0.5B)"
+        case .qwen3_06b:
+            return "Qwen3 (0.6B)"
         case .llama32_1b:
             return "Llama 3.2 (1B)"
         }
@@ -47,8 +53,12 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
             return ""  // No download needed for Apple Intelligence
         case .gemma3_1b:
             return "mlx-community/gemma-3-1b-it-4bit"
+        case .gemma3_1b_qat:
+            return "mlx-community/gemma-3-1b-it-qat-4bit"
         case .qwen25_05b:
             return "lmstudio-community/Qwen2.5-0.5B-Instruct-MLX-4bit"
+        case .qwen3_06b:
+            return "mlx-community/Qwen3-0.6B-4bit"
         case .llama32_1b:
             return "mlx-community/Llama-3.2-1B-Instruct-4bit"
         }
@@ -61,8 +71,12 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
             return "System AI model (requires iPhone 15 Pro or later)"
         case .gemma3_1b:
             return "140+ languages, 32k context (300MB)"
+        case .gemma3_1b_qat:
+            return "140+ languages, QAT 4-bit (733MB)"
         case .qwen25_05b:
             return "29+ languages, 32k context (150MB)"
+        case .qwen3_06b:
+            return "100+ languages, 32k context (335MB)"
         case .llama32_1b:
             return "8 languages (EN/ES/FR/DE/IT/PT/HI/TH) (500MB)"
         }
@@ -75,8 +89,12 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
             return 0  // Not applicable
         case .gemma3_1b:
             return 1000  // 1B
+        case .gemma3_1b_qat:
+            return 1000  // 1B
         case .qwen25_05b:
             return 500  // 0.5B
+        case .qwen3_06b:
+            return 600  // 0.6B
         case .llama32_1b:
             return 1000  // 1B
         }
@@ -89,8 +107,12 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
             return 0  // No local storage needed
         case .gemma3_1b:
             return 300
+        case .gemma3_1b_qat:
+            return 733
         case .qwen25_05b:
             return 150
+        case .qwen3_06b:
+            return 335
         case .llama32_1b:
             return 500
         }
@@ -101,9 +123,9 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .appleIntelligence:
             return 0  // Not applicable
-        case .qwen25_05b:
+        case .qwen25_05b, .qwen3_06b:
             return 128 * 1024 * 1024  // 128MB for smallest model
-        case .gemma3_1b, .llama32_1b:
+        case .gemma3_1b, .gemma3_1b_qat, .llama32_1b:
             return 256 * 1024 * 1024  // 256MB for 1B models
         }
     }
@@ -113,9 +135,9 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .appleIntelligence:
             return 0  // Not applicable
-        case .qwen25_05b:
+        case .qwen25_05b, .qwen3_06b:
             return 768 * 1024 * 1024  // 768MB for smallest model
-        case .gemma3_1b, .llama32_1b:
+        case .gemma3_1b, .gemma3_1b_qat, .llama32_1b:
             return 1024 * 1024 * 1024  // 1GB for 1B models
         }
     }
@@ -129,7 +151,7 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
                 temperature: 0.0,
                 topP: 0.0
             )
-        case .gemma3_1b:
+        case .gemma3_1b, .gemma3_1b_qat:
             return ModelGenerationParameters(
                 maxTokens: 2000,
                 temperature: 0.3,
@@ -140,6 +162,12 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
                 maxTokens: 2000,
                 temperature: 0.7,
                 topP: 0.9
+            )
+        case .qwen3_06b:
+            return ModelGenerationParameters(
+                maxTokens: 2000,
+                temperature: 0.7,
+                topP: 0.8
             )
         case .llama32_1b:
             return ModelGenerationParameters(
@@ -166,7 +194,7 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .appleIntelligence:
             return ""  // Not used for Apple Intelligence
-        case .gemma3_1b:
+        case .gemma3_1b, .gemma3_1b_qat:
             // Gemma 2/3 uses standard chat format with special tokens
             // Note: Must end with newline after <start_of_turn>model
             return """
@@ -187,6 +215,23 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
 
             \(text)<|im_end|>
             <|im_start|>assistant
+            """
+
+        case .qwen3_06b:
+            // Qwen3 uses ChatML. The empty think block requests non-thinking mode,
+            // keeping summaries concise and avoiding streamed <think> sections.
+            return """
+            <|im_start|>system
+            You are a helpful AI assistant. Your task is to summarize text concisely.<|im_end|>
+            <|im_start|>user
+            Summarize the following text in 2-3 clear sentences:
+
+            \(text)<|im_end|>
+            <|im_start|>assistant
+            <think>
+
+            </think>
+
             """
 
         case .llama32_1b:
@@ -232,9 +277,9 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .appleIntelligence:
             return []  // Not used for Apple Intelligence
-        case .gemma3_1b:
+        case .gemma3_1b, .gemma3_1b_qat:
             return ["<end_of_turn>"]  // Gemma stop token
-        case .qwen25_05b:
+        case .qwen25_05b, .qwen3_06b:
             return ["<|im_end|>"]  // Qwen ChatML end token
         case .llama32_1b:
             return ["<|eot_id|>"]  // Llama end-of-turn token

@@ -831,8 +831,8 @@ final class RecordingViewModel {
 
     private static func loadModelPreference() -> MLXModel {
         guard let data = UserDefaults.standard.data(forKey: "selectedModel") else {
-            // No saved preference, return default (Qwen2.5)
-            return .qwen25_05b
+            // No saved preference, return default (Qwen3)
+            return .qwen3_06b
         }
 
         do {
@@ -840,7 +840,7 @@ final class RecordingViewModel {
             return model
         } catch {
             // Failed to decode, return default
-            return .qwen25_05b
+            return .qwen3_06b
         }
     }
 }
