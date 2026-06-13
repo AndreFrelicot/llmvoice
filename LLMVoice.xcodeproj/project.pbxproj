@@ -91,6 +91,7 @@
 				A000001A /* Managers */,
 				A000001B /* ViewModels */,
 				A000001C /* Views */,
+				6584073D2E9E60160050ED36 /* Utilities */,
 				A0000016 /* Info.plist */,
 			);
 			path = LLMVoice;
@@ -147,7 +148,6 @@
 			isa = PBXGroup;
 			children = (
 				658407412E9E60E40050ED36 /* Assets.xcassets */,
-				6584073D2E9E60160050ED36 /* Utilities */,
 				A0000018 /* LLMVoice */,
 				A000001E /* Products */,
 			);

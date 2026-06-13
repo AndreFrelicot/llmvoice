@@ -11,7 +11,8 @@ import WebKit
 struct SummaryRow: View {
     let summary: Summary
 
-    @State private var isExpanded = false
+    @State private var isCompact = true
+    @State private var showsOriginalTranscription = false
     @State private var showHTMLPreview = false
 
     var body: some View {
@@ -64,14 +65,29 @@ struct SummaryRow: View {
 
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        isExpanded.toggle()
+                        showsOriginalTranscription.toggle()
                     }
                 } label: {
-                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle")
+                    Image(systemName: "text.quote")
+                        .foregroundStyle(showsOriginalTranscription ? .blue : .secondary)
+                        .imageScale(.medium)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showsOriginalTranscription ? "Hide original transcription" : "Show original transcription")
+                .help(showsOriginalTranscription ? "Hide original transcription" : "Show original transcription")
+
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isCompact.toggle()
+                    }
+                } label: {
+                    Image(systemName: isCompact ? "chevron.down.circle" : "chevron.up.circle.fill")
                         .foregroundStyle(.blue)
                         .imageScale(.medium)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isCompact ? "Expand summary" : "Compact summary")
+                .help(isCompact ? "Expand summary" : "Compact summary")
             }
 
             // HTML/SVG Preview button
@@ -101,12 +117,13 @@ struct SummaryRow: View {
                 Text(summary.content)
                     .font(.callout)
                     .foregroundStyle(.primary)
+                    .lineLimit(isCompact ? 3 : nil)
                     .textSelection(.enabled)
             }
             .padding(.vertical, 4)
 
             // Original transcription (collapsible)
-            if isExpanded {
+            if showsOriginalTranscription {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
 
@@ -242,7 +259,7 @@ struct HTMLPreviewView: View {
         ))
 
         SummaryRow(summary: Summary(
-            content: "Brainstormed new feature ideas based on user feedback and scheduled a follow-up meeting for next week.",
+            content: "Brainstormed new feature ideas based on user feedback and scheduled a follow-up meeting for next week. The team identified onboarding, model download visibility, and summary editing as the most urgent improvements. The next discussion will focus on implementation order, expected complexity, and what should remain outside the first clean release.",
             originalTranscription: "The team gathered to brainstorm new feature ideas based on recent user feedback. We prioritized the most requested features and decided to schedule a follow-up meeting next week to discuss implementation details.",
             computationTime: 1.7,
             modelUsed: "Gemma 3 (1B)"
