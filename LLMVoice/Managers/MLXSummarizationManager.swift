@@ -798,8 +798,8 @@ final class MLXSummarizationManager {
             )
         }
 
-        let prompt = text
-        let params = self.selectedModel.generationParams
+        let prompt = self.selectedModel.formatDirectPrompt(text: text)
+        let params = parametersManager.getParameters(for: self.selectedModel)
         let generateParameters = GenerateParameters(
             maxTokens: params.maxTokens,
             temperature: params.temperature,
@@ -1005,14 +1005,14 @@ final class MLXSummarizationManager {
             )
         }
 
-        // Send text directly as prompt (no summarization template)
-        let prompt = text
+        // Send text as a free-form prompt using the selected model's chat template.
+        let prompt = self.selectedModel.formatDirectPrompt(text: text)
 
         logger.info("📝 Sending direct prompt to \(self.selectedModel.displayName)")
 
         do {
             // Prepare generation parameters optimized for selected model
-            let params = self.selectedModel.generationParams
+            let params = parametersManager.getParameters(for: self.selectedModel)
             let generateParameters = GenerateParameters(
                 maxTokens: params.maxTokens,
                 temperature: params.temperature,

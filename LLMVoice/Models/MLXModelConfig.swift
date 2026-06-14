@@ -189,6 +189,39 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
         return defaultPromptTemplate(text: text)
     }
 
+    /// Format a free-form user prompt for this model without applying the summarization instruction.
+    func formatDirectPrompt(text: String) -> String {
+        switch self {
+        case .appleIntelligence:
+            return text
+        case .gemma3_1b, .gemma3_1b_qat:
+            return """
+            <bos><start_of_turn>user
+            \(text)<end_of_turn>
+            <start_of_turn>model
+            """
+
+        case .qwen25_05b, .qwen3_06b:
+            return """
+            <|im_start|>system
+            You are a helpful AI assistant.<|im_end|>
+            <|im_start|>user
+            \(text)<|im_end|>
+            <|im_start|>assistant
+            """
+
+        case .llama32_1b:
+            return """
+            <|start_header_id|>system<|end_header_id|>
+
+            You are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+            \(text)<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+            """
+        }
+    }
+
     /// Get default prompt template for this model (MLX models only)
     private func defaultPromptTemplate(text: String) -> String {
         switch self {
