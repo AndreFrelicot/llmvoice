@@ -91,9 +91,11 @@ struct ContentView: View {
                         streamingState: viewModel.streamingState,
                         showMetrics: viewModel.showMetrics,
                         onScroll: { offset in
+                            let shouldReduceButton = offset > (isButtonReduced ? 28 : 56)
+                            guard shouldReduceButton != isButtonReduced else { return }
+
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                // Reduce button if scrolling down more than 50 points
-                                isButtonReduced = offset > 50
+                                isButtonReduced = shouldReduceButton
                             }
                         },
                         onCancel: {

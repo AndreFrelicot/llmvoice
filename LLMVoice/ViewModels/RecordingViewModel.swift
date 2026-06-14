@@ -72,6 +72,8 @@ final class RecordingViewModel {
 
     // Generation task for cancellation
     private var generationTask: Task<Void, Never>?
+    private var lastStreamingUIUpdate = Date.distantPast
+    private let minimumStreamingUIUpdateInterval: TimeInterval = 0.08
 
     init() {
         // Load preferences first (before any logging that references them)
@@ -524,6 +526,39 @@ final class RecordingViewModel {
         logger.info("   • volatileTranscription: '\(self.volatileTranscription)'")
     }
 
+    private func resetStreamingState() {
+        streamingState = StreamingState.initial(modelName: selectedModel.displayName)
+        streamingState.isStreaming = true
+        lastStreamingUIUpdate = .distantPast
+    }
+
+    private func applyStreamingUpdate(partialText: String, metrics: GenerationMetrics) {
+        let now = Date()
+        let tokenDelta = metrics.totalTokens - streamingState.metrics.totalTokens
+        let enoughTimeElapsed = now.timeIntervalSince(lastStreamingUIUpdate) >= minimumStreamingUIUpdateInterval
+        let shouldUpdate = metrics.isComplete
+            || streamingState.partialText.isEmpty
+            || tokenDelta >= 3
+            || enoughTimeElapsed
+
+        guard shouldUpdate else { return }
+
+        if streamingState.partialText != partialText {
+            streamingState.partialText = partialText
+        }
+
+        if streamingState.metrics != metrics {
+            streamingState.metrics = metrics
+        }
+
+        let isStreaming = !metrics.isComplete
+        if streamingState.isStreaming != isStreaming {
+            streamingState.isStreaming = isStreaming
+        }
+
+        lastStreamingUIUpdate = now
+    }
+
     private func generateSummary(for text: String) async {
         logger.info("🤖 generateSummary() called with text length: \(text.count)")
         isProcessingSummary = true
@@ -531,9 +566,7 @@ final class RecordingViewModel {
         modelLoadProgress = 0.0
         errorMessage = nil
 
-        // Initialize streaming state
-        streamingState = StreamingState.initial(modelName: selectedModel.displayName)
-        streamingState.isStreaming = true
+        resetStreamingState()
         showMetrics = true
 
         // Store the task for cancellation - DON'T await it, let it run in background
@@ -579,10 +612,7 @@ final class RecordingViewModel {
             // Use streaming summarization with metrics
             let summaryText = try await manager.summarizeStreaming(text, onStream: { [weak self] partialText, metrics in
                 guard let self = self else { return }
-                // Update streaming state with partial text and metrics
-                self.streamingState.partialText = partialText
-                self.streamingState.metrics = metrics
-                self.streamingState.isStreaming = !metrics.isComplete
+                self.applyStreamingUpdate(partialText: partialText, metrics: metrics)
 
                 // Log progress
                 if metrics.totalTokens % 10 == 0 || metrics.isComplete {
@@ -649,9 +679,7 @@ final class RecordingViewModel {
         modelLoadProgress = 0.0
         errorMessage = nil
 
-        // Initialize streaming state
-        streamingState = StreamingState.initial(modelName: selectedModel.displayName)
-        streamingState.isStreaming = true
+        resetStreamingState()
         showMetrics = true
 
         // Store the task for cancellation - DON'T await it, let it run in background
@@ -697,10 +725,7 @@ final class RecordingViewModel {
             // Use streaming direct prompt with metrics
             let responseText = try await manager.sendDirectPromptStreaming(text, onStream: { [weak self] partialText, metrics in
                 guard let self = self else { return }
-                // Update streaming state with partial text and metrics
-                self.streamingState.partialText = partialText
-                self.streamingState.metrics = metrics
-                self.streamingState.isStreaming = !metrics.isComplete
+                self.applyStreamingUpdate(partialText: partialText, metrics: metrics)
 
                 // Log progress
                 if metrics.totalTokens % 10 == 0 || metrics.isComplete {
