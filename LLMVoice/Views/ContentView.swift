@@ -482,6 +482,7 @@ struct TranscriptionView: View {
                         }
 
                         Button {
+                            isTextEditorFocused = false
                             onSummarize()
                         } label: {
                             if isButtonReduced {
@@ -498,6 +499,7 @@ struct TranscriptionView: View {
                         .disabled(isLoadingModel)
 
                         Button {
+                            isTextEditorFocused = false
                             onSendPrompt()
                         } label: {
                             if isButtonReduced {
@@ -576,84 +578,81 @@ struct SummariesListView: View {
             } else {
                 ScrollViewReader { proxy in
                     List {
-
                         // Streaming preview (while generating)
-                    if streamingState.isStreaming || (isProcessing && !streamingState.partialText.isEmpty) {
-                        VStack(alignment: .leading, spacing: 12) {
+                        if streamingState.isStreaming || (isProcessing && !streamingState.partialText.isEmpty) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(.blue)
+                                        .symbolEffect(.pulse, isActive: true)
+                                        .padding(.trailing, 4)
+                                    Text("Generating...")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Text("\(streamingState.metrics.totalTokens) tokens")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
+                                    // Cancel button
+                                    if let onCancel = onCancel {
+                                        Button {
+                                            onCancel()
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundStyle(.red)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+
+                                // Metrics overlay (at the top)
+                                if showMetrics {
+                                    StreamingMetricsView(metrics: streamingState.metrics)
+                                }
+
+                                // Streaming text
+                                Text(streamingState.partialText.isEmpty ? "Starting generation..." : streamingState.partialText)
+                                    .font(.callout)
+                                    .foregroundStyle(streamingState.partialText.isEmpty ? .secondary : .primary)
+                                    .textSelection(.enabled)
+                            }
+                            .conversationListRowStyle()
+                        } else if isProcessing {
+                            // Fallback: No streaming text yet
                             HStack {
                                 Image(systemName: "sparkles")
                                     .foregroundStyle(.blue)
-                                    .symbolEffect(.pulse, isActive: true)
-                                    .padding(.trailing, 4)
-                                Text("Generating...")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Text("\(streamingState.metrics.totalTokens) tokens")
-                                    .font(.caption)
+                                    .symbolEffect(.rotate, isActive: true)
+                                    .padding(.trailing, 8)
+                                Text("Preparing model...")
                                     .foregroundStyle(.secondary)
-
-                                // Cancel button
-                                if let onCancel = onCancel {
-                                    Button {
-                                        onCancel()
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(.red)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
                             }
+                            .conversationListRowStyle()
+                        }
 
-                            // Metrics overlay (at the top)
-                            if showMetrics {
+                        // Performance metrics for most recent summary (if available and showMetrics is true)
+                        if showMetrics && !streamingState.isStreaming && streamingState.metrics.isComplete && !summaries.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "chart.xyaxis.line")
+                                        .foregroundStyle(.green)
+                                        .padding(.trailing, 4)
+                                    Text("Generation Complete")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Text("\(streamingState.metrics.totalTokens) tokens")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
                                 StreamingMetricsView(metrics: streamingState.metrics)
                             }
-
-                            // Streaming text
-                            Text(streamingState.partialText.isEmpty ? "Starting generation..." : streamingState.partialText)
-                                .font(.callout)
-                                .foregroundStyle(streamingState.partialText.isEmpty ? .secondary : .primary)
-                                .textSelection(.enabled)
+                            .conversationListRowStyle()
                         }
-                        .padding(.vertical, 8)
-                        .listRowBackground(Color(.systemGroupedBackground))
-                    } else if isProcessing {
-                        // Fallback: No streaming text yet
-                        HStack {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(.blue)
-                                .symbolEffect(.rotate, isActive: true)
-                                .padding(.trailing, 8)
-                            Text("Preparing model...")
-                                .foregroundStyle(.secondary)
-                        }
-                        .listRowBackground(Color(.systemGroupedBackground))
-                    }
-
-                    // Performance metrics for most recent summary (if available and showMetrics is true)
-                    if showMetrics && !streamingState.isStreaming && streamingState.metrics.isComplete && !summaries.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "chart.xyaxis.line")
-                                    .foregroundStyle(.green)
-                                    .padding(.trailing, 4)
-                                Text("Generation Complete")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Text("\(streamingState.metrics.totalTokens) tokens")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            StreamingMetricsView(metrics: streamingState.metrics)
-                        }
-                        .padding(.vertical, 8)
-                        .listRowBackground(Color(.systemGroupedBackground))
-                    }
 
                         // Completed summaries
                         ForEach(summaries) { summary in
@@ -665,9 +664,10 @@ struct SummariesListView: View {
                                         Label("Delete", systemImage: "trash")
                                     }
                                 }
+                                .conversationListRowStyle()
                         }
                     }
-                    .listStyle(.insetGrouped)
+                    .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                     .background(Color(.systemGroupedBackground))
                     .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -681,6 +681,19 @@ struct SummariesListView: View {
                 }
             }
         }
+    }
+}
+
+private extension View {
+    func conversationListRowStyle() -> some View {
+        padding(10)
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 }
 
