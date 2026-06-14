@@ -18,77 +18,78 @@ struct SummaryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header with timestamp, computation time, and model
-            HStack {
-                Label {
-                    Text(summary.timestamp, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } icon: {
-                    Image(systemName: "clock")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let computationTime = summary.computationTime {
-                    Text("•")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
+            // Header split into creation/actions and generation metadata.
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Label {
-                        Text(formatComputationTime(computationTime))
+                        Text(formatCreationTimestamp(summary.timestamp))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     } icon: {
-                        Image(systemName: "timer")
+                        Image(systemName: "calendar")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
 
-                if let modelUsed = summary.modelUsed {
-                    Text("•")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
 
-                    Label {
-                        Text(modelUsed)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } icon: {
-                        Image(systemName: "brain.head.profile")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            showsOriginalTranscription.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "text.quote")
+                            .foregroundStyle(showsOriginalTranscription ? .blue : .secondary)
+                            .imageScale(.medium)
                     }
-                }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(showsOriginalTranscription ? "Hide original transcription" : "Show original transcription")
+                    .help(showsOriginalTranscription ? "Hide original transcription" : "Show original transcription")
 
-                Spacer()
-
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        showsOriginalTranscription.toggle()
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isCompact.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isCompact ? "chevron.down.circle" : "chevron.up.circle.fill")
+                            .foregroundStyle(.blue)
+                            .imageScale(.medium)
                     }
-                } label: {
-                    Image(systemName: "text.quote")
-                        .foregroundStyle(showsOriginalTranscription ? .blue : .secondary)
-                        .imageScale(.medium)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isCompact ? "Expand summary" : "Compact summary")
+                    .help(isCompact ? "Expand summary" : "Compact summary")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(showsOriginalTranscription ? "Hide original transcription" : "Show original transcription")
-                .help(showsOriginalTranscription ? "Hide original transcription" : "Show original transcription")
 
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        isCompact.toggle()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    if let computationTime = summary.computationTime {
+                        Label {
+                            Text(formatComputationTime(computationTime))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "timer")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                } label: {
-                    Image(systemName: isCompact ? "chevron.down.circle" : "chevron.up.circle.fill")
-                        .foregroundStyle(.blue)
-                        .imageScale(.medium)
+
+                    if let modelUsed = summary.modelUsed {
+                        Label {
+                            Text(modelUsed)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        } icon: {
+                            Image(systemName: "brain.head.profile")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isCompact ? "Expand summary" : "Compact summary")
-                .help(isCompact ? "Expand summary" : "Compact summary")
             }
 
             // HTML/SVG Preview button
@@ -141,7 +142,7 @@ struct SummaryRow: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 2)
         .sheet(isPresented: $showHTMLPreview) {
             if let htmlContent = summary.extractedHTMLContent {
                 HTMLPreviewView(htmlContent: htmlContent)
@@ -165,6 +166,19 @@ struct SummaryRow: View {
         }
     }
 
+    /// Format creation timestamp as a fixed local date/time, not a live relative age.
+    private func formatCreationTimestamp(_ date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        return String(
+            format: "%02d/%02d/%04d %02d:%02d:%02d",
+            components.day ?? 0,
+            components.month ?? 0,
+            components.year ?? 0,
+            components.hour ?? 0,
+            components.minute ?? 0,
+            components.second ?? 0
+        )
+    }
 }
 
 // MARK: - HTML WebView Components
