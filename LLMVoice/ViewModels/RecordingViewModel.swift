@@ -32,6 +32,10 @@ final class RecordingViewModel {
     private(set) var streamingState = StreamingState.initial(modelName: "")
     private(set) var showMetrics = false
 
+    var isGeneratingResponse: Bool {
+        isProcessingSummary || streamingState.isStreaming || generationTask != nil
+    }
+
     // Model loading state
     private(set) var isLoadingModel = false
     private(set) var modelLoadProgress: Double = 0.0
@@ -238,6 +242,11 @@ final class RecordingViewModel {
     /// Summarize the given text (triggered manually by user)
     func summarizeText(_ text: String) async {
         logger.info("📝 Manual summarization requested for text length: \(text.count)")
+        guard !isGeneratingResponse else {
+            logger.warning("⚠️ Ignoring summarize request while generation is already running")
+            return
+        }
+
         guard !text.isEmpty else {
             logger.warning("⚠️ Cannot summarize empty text")
             return
@@ -248,6 +257,11 @@ final class RecordingViewModel {
     /// Send text as a direct prompt to the LLM (no summarization system prompt)
     func sendDirectPrompt(_ text: String) async {
         logger.info("📨 Direct prompt requested for text length: \(text.count)")
+        guard !isGeneratingResponse else {
+            logger.warning("⚠️ Ignoring direct prompt request while generation is already running")
+            return
+        }
+
         guard !text.isEmpty else {
             logger.warning("⚠️ Cannot send empty prompt")
             return

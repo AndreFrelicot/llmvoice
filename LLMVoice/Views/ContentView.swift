@@ -49,6 +49,7 @@ struct ContentView: View {
                         editableText: $editableTranscription,
                         isRecording: viewModel.isRecording,
                         isLoadingModel: viewModel.isLoadingModel,
+                        isGeneratingResponse: viewModel.isGeneratingResponse,
                         isResolving: viewModel.isResolvingTranscription,
                         isButtonReduced: isButtonReduced,
                         isExpanded: $isTranscriptionExpanded,
@@ -333,6 +334,7 @@ struct TranscriptionView: View {
     @Binding var editableText: String
     let isRecording: Bool
     let isLoadingModel: Bool
+    let isGeneratingResponse: Bool
     let isResolving: Bool
     let isButtonReduced: Bool
     @Binding var isExpanded: Bool
@@ -341,6 +343,10 @@ struct TranscriptionView: View {
     let onToggleRecording: () -> Void
 
     @FocusState private var isTextEditorFocused: Bool
+
+    private var actionControlsDisabled: Bool {
+        isLoadingModel || isGeneratingResponse
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -498,7 +504,7 @@ struct TranscriptionView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.regular)
-                        .disabled(isLoadingModel)
+                        .disabled(actionControlsDisabled)
 
                         Button {
                             isTextEditorFocused = false
@@ -515,7 +521,7 @@ struct TranscriptionView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
-                        .disabled(isLoadingModel)
+                        .disabled(actionControlsDisabled)
                     }
                     .padding()
                 } else if isButtonReduced {
