@@ -15,6 +15,38 @@ struct SummaryRow: View {
     @State private var isCompact = true
     @State private var showsOriginalTranscription = false
     @State private var showHTMLPreview = false
+    @State private var showsThinkingOverride: Bool?
+
+    private var thinkingContent: ThinkingContent {
+        ThinkingContent.parse(summary.content)
+    }
+
+    private var answerContent: String {
+        thinkingContent.hasThinking ? thinkingContent.visibleText : summary.content
+    }
+
+    private var displayedContent: String {
+        guard thinkingContent.hasThinking, !isThinkingVisible else {
+            return summary.content
+        }
+
+        return thinkingContent.visibleText.isEmpty ? "Thinking hidden" : thinkingContent.visibleText
+    }
+
+    private var isThinkingVisible: Bool {
+        showsThinkingOverride ?? thinkingContent.containsOnlyThinking
+    }
+
+    private var answerSummary: Summary {
+        Summary(
+            id: summary.id,
+            content: answerContent,
+            originalTranscription: summary.originalTranscription,
+            timestamp: summary.timestamp,
+            computationTime: summary.computationTime,
+            modelUsed: summary.modelUsed
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -33,6 +65,21 @@ struct SummaryRow: View {
                     }
 
                     Spacer(minLength: 8)
+
+                    if thinkingContent.hasThinking {
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showsThinkingOverride = !isThinkingVisible
+                            }
+                        } label: {
+                            Image(systemName: isThinkingVisible ? "eye.circle.fill" : "eye.slash.circle")
+                                .foregroundStyle(isThinkingVisible ? .blue : .secondary)
+                                .imageScale(.medium)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isThinkingVisible ? "Hide thinking" : "Show thinking")
+                        .help(isThinkingVisible ? "Hide thinking" : "Show thinking")
+                    }
 
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -93,20 +140,20 @@ struct SummaryRow: View {
             }
 
             // HTML/SVG Preview button
-            if summary.containsHTMLOrSVG {
+            if answerSummary.containsHTMLOrSVG {
                 Button {
                     showHTMLPreview = true
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: summary.hasInvalidSVG ? "exclamationmark.triangle.fill" : "safari")
-                            .foregroundStyle(summary.hasInvalidSVG ? .orange : .blue)
-                        Text(summary.hasInvalidSVG ? "Preview (Invalid SVG)" : "Preview HTML/SVG")
+                        Image(systemName: answerSummary.hasInvalidSVG ? "exclamationmark.triangle.fill" : "safari")
+                            .foregroundStyle(answerSummary.hasInvalidSVG ? .orange : .blue)
+                        Text(answerSummary.hasInvalidSVG ? "Preview (Invalid SVG)" : "Preview HTML/SVG")
                     }
                     .font(.subheadline)
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .tint(summary.hasInvalidSVG ? .orange : .blue)
+                .tint(answerSummary.hasInvalidSVG ? .orange : .blue)
                 .controlSize(.small)
             }
 
@@ -116,7 +163,7 @@ struct SummaryRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text(summary.content)
+                Text(displayedContent)
                     .font(.callout)
                     .foregroundStyle(.primary)
                     .lineLimit(isCompact ? 3 : nil)
@@ -144,7 +191,7 @@ struct SummaryRow: View {
         }
         .padding(.vertical, 2)
         .sheet(isPresented: $showHTMLPreview) {
-            if let htmlContent = summary.extractedHTMLContent {
+            if let htmlContent = answerSummary.extractedHTMLContent {
                 HTMLPreviewView(htmlContent: htmlContent)
             } else {
                 Text("Unable to extract HTML/SVG content")
@@ -178,6 +225,64 @@ struct SummaryRow: View {
             components.minute ?? 0,
             components.second ?? 0
         )
+    }
+}
+
+private struct ThinkingContent {
+    let visibleText: String
+    let hasThinking: Bool
+
+    var containsOnlyThinking: Bool {
+        hasThinking && visibleText.isEmpty
+    }
+
+    static func parse(_ text: String) -> ThinkingContent {
+        var visibleText = text
+        var hasThinking = false
+
+        if let completeRegex = try? NSRegularExpression(
+            pattern: #"<think\b[^>]*>[\s\S]*?</think\s*>"#,
+            options: [.caseInsensitive]
+        ) {
+            let matches = completeRegex.matches(
+                in: visibleText,
+                range: NSRange(visibleText.startIndex..<visibleText.endIndex, in: visibleText)
+            )
+
+            hasThinking = !matches.isEmpty
+
+            for match in matches.reversed() {
+                guard let range = Range(match.range, in: visibleText) else { continue }
+                visibleText.removeSubrange(range)
+            }
+        }
+
+        if let unclosedRegex = try? NSRegularExpression(
+            pattern: #"<think\b[^>]*>[\s\S]*\z"#,
+            options: [.caseInsensitive]
+        ) {
+            let matches = unclosedRegex.matches(
+                in: visibleText,
+                range: NSRange(visibleText.startIndex..<visibleText.endIndex, in: visibleText)
+            )
+
+            if let match = matches.last,
+               let range = Range(match.range, in: visibleText) {
+                hasThinking = true
+                visibleText.removeSubrange(range)
+            }
+        }
+
+        return ThinkingContent(
+            visibleText: normalizedVisibleText(visibleText),
+            hasThinking: hasThinking
+        )
+    }
+
+    private static func normalizedVisibleText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: #"\n[ \t]*\n[ \t\n]*"#, with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
