@@ -255,15 +255,15 @@ struct ModelRow: View {
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                             Spacer()
-                            Text("\(editedMaxTokens)")
+                            Text("\(editedMaxTokens) / \(model.maxTokenLimit)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
                         Slider(value: Binding(
                             get: { Float(editedMaxTokens) },
-                            set: { editedMaxTokens = Int($0) }
-                        ), in: 50...3000, step: 50)
+                            set: { editedMaxTokens = min(Int($0), model.maxTokenLimit) }
+                        ), in: 50...Float(model.maxTokenLimit), step: 50)
                         .onChange(of: editedMaxTokens) { _, newValue in
                             saveParameters()
                         }
@@ -432,7 +432,7 @@ struct ModelRow: View {
         editedPrompt = params.prompt
         editedTemperature = params.temperature
         editedTopP = params.topP
-        editedMaxTokens = params.maxTokens
+        editedMaxTokens = min(params.maxTokens, model.maxTokenLimit)
     }
 
     private func saveParameters() {

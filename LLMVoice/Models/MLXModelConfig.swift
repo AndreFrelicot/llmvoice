@@ -153,28 +153,42 @@ enum MLXModel: String, CaseIterable, Identifiable, Codable {
             )
         case .gemma3_1b, .gemma3_1b_qat:
             return ModelGenerationParameters(
-                maxTokens: 2000,
+                maxTokens: maxTokenLimit,
                 temperature: 0.3,
                 topP: 0.9
             )
         case .qwen25_05b:
             return ModelGenerationParameters(
-                maxTokens: 2000,
+                maxTokens: maxTokenLimit,
                 temperature: 0.7,
                 topP: 0.9
             )
         case .qwen3_06b:
             return ModelGenerationParameters(
-                maxTokens: 2000,
+                maxTokens: maxTokenLimit,
                 temperature: 0.7,
                 topP: 0.8
             )
         case .llama32_1b:
             return ModelGenerationParameters(
-                maxTokens: 2000,
+                maxTokens: maxTokenLimit,
                 temperature: 0.3,
                 topP: 0.9
             )
+        }
+    }
+
+    /// Model context window from the Hugging Face model config.
+    var maxTokenLimit: Int {
+        switch self {
+        case .appleIntelligence:
+            return 0
+        case .gemma3_1b, .gemma3_1b_qat, .qwen25_05b:
+            return 32_768
+        case .qwen3_06b:
+            return 40_960
+        case .llama32_1b:
+            return 131_072
         }
     }
 

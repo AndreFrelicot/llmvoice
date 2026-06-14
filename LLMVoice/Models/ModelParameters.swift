@@ -66,10 +66,30 @@ class ModelParametersManager: ObservableObject {
 
     private func loadParameters() {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-              let decoded = try? JSONDecoder().decode([String: ModelParameters].self, from: data) else {
+              var decoded = try? JSONDecoder().decode([String: ModelParameters].self, from: data) else {
             return
         }
+
+        var migratedLegacyTokenLimits = false
+        let legacyTokenLimits = Set([2_000, 3_000, 4_000, 6_000])
+        for (modelID, params) in decoded {
+            guard let model = MLXModel(rawValue: modelID),
+                  model.isOnDeviceMLX,
+                  legacyTokenLimits.contains(params.maxTokens) else {
+                continue
+            }
+
+            var updatedParams = params
+            updatedParams.maxTokens = model.maxTokenLimit
+            decoded[modelID] = updatedParams
+            migratedLegacyTokenLimits = true
+        }
+
         parameters = decoded
+
+        if migratedLegacyTokenLimits {
+            persistParameters()
+        }
     }
 
     private func persistParameters() {
