@@ -26,6 +26,8 @@ final class TranscriptionManager {
     private var startTime: Date?
     private var firstResultTime: Date?
     nonisolated(unsafe) private var firstBufferLogged = false
+    private var isStartingTranscription = false
+    private var isTranscriptionActive = false
 
     init() {
         logger.info("📝 TranscriptionManager initialized")
@@ -37,6 +39,23 @@ final class TranscriptionManager {
     ///   - onResult: Callback with transcribed text and whether it's final
     func startTranscription(locale: Locale, onResult: @escaping (String, Bool) -> Void) async throws {
         logger.info("🚀 startTranscription() called with locale: \(locale.identifier)")
+        guard !isStartingTranscription && !isTranscriptionActive && analyzer == nil && inputBuilder == nil else {
+            logger.warning("⚠️ Ignoring startTranscription because an analyzer is already active")
+            throw NSError(
+                domain: "TranscriptionManager",
+                code: 20,
+                userInfo: [NSLocalizedDescriptionKey: "Speech transcription is already starting or active"]
+            )
+        }
+
+        isStartingTranscription = true
+        defer {
+            if !isTranscriptionActive {
+                resetTranscriptionResources()
+                isStartingTranscription = false
+            }
+        }
+
         bufferCount = 0
         startTime = Date()
         firstResultTime = nil
@@ -193,9 +212,14 @@ final class TranscriptionManager {
         // Start the analyzer
         do {
             try await analyzer?.start(inputSequence: inputSequence)
+            isTranscriptionActive = true
+            isStartingTranscription = false
             logger.info("✅ Analyzer started successfully")
         } catch {
             logger.error("❌ Failed to start analyzer: \(error.localizedDescription)")
+            resetTranscriptionResources()
+            isStartingTranscription = false
+            isTranscriptionActive = false
             throw error
         }
 
@@ -245,6 +269,14 @@ final class TranscriptionManager {
     func stopTranscription() async {
         logger.info("🛑 ========== TranscriptionManager.stopTranscription() CALLED ==========")
 
+        guard isStartingTranscription || isTranscriptionActive || analyzer != nil || inputBuilder != nil else {
+            logger.warning("⚠️ stopTranscription ignored because no analyzer is active")
+            return
+        }
+
+        isStartingTranscription = false
+        isTranscriptionActive = false
+
         logger.info("📡 STEP 1: Finishing input stream...")
         inputBuilder?.finish()
         logger.info("✅ Input stream finished")
@@ -268,11 +300,7 @@ final class TranscriptionManager {
         logger.info("✅ Recognition task cancelled")
 
         logger.info("🧹 STEP 4: Cleaning up resources")
-        transcriber = nil
-        analyzer = nil
-        inputBuilder = nil
-        recognitionTask = nil
-        analyzerFormat = nil
+        resetTranscriptionResources()
         logger.info("✅ Resources cleaned up")
 
         logger.info("========== TranscriptionManager.stopTranscription() COMPLETE ==========")
@@ -323,6 +351,16 @@ final class TranscriptionManager {
         try await installRequest.downloadAndInstall()
 
         logger.info("✅ Assets reserved successfully")
+    }
+
+    private func resetTranscriptionResources() {
+        inputBuilder?.finish()
+        recognitionTask?.cancel()
+        transcriber = nil
+        analyzer = nil
+        inputBuilder = nil
+        recognitionTask = nil
+        analyzerFormat = nil
     }
 }
 

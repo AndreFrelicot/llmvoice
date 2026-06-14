@@ -9,6 +9,7 @@ import SwiftUI
 
 struct FloatingRecordButton: View {
     let isRecording: Bool
+    var isStarting: Bool = false
     var isResolving: Bool = false
     var isDisabled: Bool = false
     var isReduced: Bool = false
@@ -30,17 +31,25 @@ struct FloatingRecordButton: View {
         isReduced ? 20 : 30
     }
 
+    private var isTransitioning: Bool {
+        isStarting || isResolving
+    }
+
     // Button color based on state
     private var buttonColor: Color {
         if isDisabled {
             return .gray
-        } else if isResolving {
+        } else if isTransitioning {
             return .orange
         } else if isRecording {
             return .red
         } else {
             return .blue
         }
+    }
+
+    private var iconName: String {
+        isTransitioning ? "hourglass" : (isRecording ? "stop.fill" : "mic.fill")
     }
 
     var body: some View {
@@ -62,23 +71,23 @@ struct FloatingRecordButton: View {
                     .shadow(color: .black.opacity(0.2), radius: isReduced ? 4 : 8, x: 0, y: isReduced ? 2 : 4)
 
                 // Icon
-                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                Image(systemName: iconName)
                     .font(.system(size: iconSize))
                     .foregroundStyle(.white)
                     .symbolEffect(.bounce, value: isRecording)
-                    .opacity(isDisabled ? 0.5 : 1.0)
+                    .opacity((isDisabled || isTransitioning) ? 0.6 : 1.0)
                     .rotationEffect(.degrees(rotationAngle))
-                    .animation(isResolving ? .linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: rotationAngle)
+                    .animation(isTransitioning ? .linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: rotationAngle)
             }
         }
         .buttonStyle(.plain)
-        .disabled(isDisabled)
+        .disabled(isDisabled || isTransitioning)
         .onChange(of: isRecording) { _, newValue in
             if newValue {
                 startPulseAnimation()
             }
         }
-        .onChange(of: isResolving) { _, newValue in
+        .onChange(of: isTransitioning) { _, newValue in
             if newValue {
                 startSpinAnimation()
             } else {

@@ -17,6 +17,7 @@ final class RecordingViewModel {
     private let logger = Logger(subsystem: "dev.andrefrelicot.llmvoice", category: "RecordingViewModel")
     // MARK: - Published State
     private(set) var isRecording = false
+    private(set) var isStartingRecording = false
     private(set) var isResolvingTranscription = false
     private(set) var finalizedTranscription = ""
     private(set) var volatileTranscription = ""
@@ -174,11 +175,19 @@ final class RecordingViewModel {
     /// Toggle recording on/off
     func toggleRecording() {
         logger.info("🎤 Toggle recording called, current state: \(self.isRecording ? "recording" : "stopped")")
+
+        guard !isStartingRecording && !isResolvingTranscription else {
+            logger.warning("⚠️ Ignoring recording toggle while recording state is transitioning")
+            return
+        }
+
         if isRecording {
             logger.info("⏹️ Stopping recording")
+            isResolvingTranscription = true
             Task { await stopRecording() }
         } else {
             logger.info("▶️ Starting recording")
+            isStartingRecording = true
             Task { await startRecording() }
         }
     }
@@ -360,6 +369,20 @@ final class RecordingViewModel {
 
     private func startRecording() async {
         logger.info("🎙️ startRecording() called")
+
+        guard !isRecording else {
+            logger.warning("⚠️ startRecording ignored because recording is already active")
+            isStartingRecording = false
+            return
+        }
+
+        isStartingRecording = true
+        var didStartTranscription = false
+
+        defer {
+            isStartingRecording = false
+        }
+
         do {
             logger.info("🧹 Clearing previous state")
             errorMessage = nil
@@ -418,6 +441,7 @@ final class RecordingViewModel {
                     }
                 }
             }
+            didStartTranscription = true
 
             logger.info("✅ Transcription started successfully")
             logger.info("🎧 Starting audio stream")
@@ -449,6 +473,18 @@ final class RecordingViewModel {
         } catch {
             logger.error("❌ Failed to start recording: \(error.localizedDescription)")
             errorMessage = "Failed to start recording: \(error.localizedDescription)"
+            isRecording = false
+
+            let capturedAudioManager = audioManager
+            await Task.detached {
+                capturedAudioManager.stopAudioStream()
+            }.value
+
+            if didStartTranscription,
+               #available(iOS 26.0, macOS 26.0, *),
+               let manager = transcriptionManager as? TranscriptionManager {
+                await manager.stopTranscription()
+            }
         }
     }
 
@@ -460,6 +496,12 @@ final class RecordingViewModel {
         logger.info("   • finalizedTranscription: '\(self.finalizedTranscription)'")
         logger.info("   • volatileTranscription.count: \(self.volatileTranscription.count)")
         logger.info("   • volatileTranscription: '\(self.volatileTranscription)'")
+
+        guard isRecording || isResolvingTranscription else {
+            logger.warning("⚠️ stopRecording ignored because recording is not active")
+            isResolvingTranscription = false
+            return
+        }
 
         isRecording = false
         isResolvingTranscription = true

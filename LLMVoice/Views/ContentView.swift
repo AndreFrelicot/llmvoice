@@ -48,6 +48,7 @@ struct ContentView: View {
                         volatileText: viewModel.volatileTranscription,
                         editableText: $editableTranscription,
                         isRecording: viewModel.isRecording,
+                        isStartingRecording: viewModel.isStartingRecording,
                         isLoadingModel: viewModel.isLoadingModel,
                         isGeneratingResponse: viewModel.isGeneratingResponse,
                         isResolving: viewModel.isResolvingTranscription,
@@ -116,7 +117,7 @@ struct ContentView: View {
                                     .font(.caption)
                             }
                         }
-                        .disabled(viewModel.isRecording)
+                        .disabled(viewModel.isRecording || viewModel.isStartingRecording || viewModel.isResolvingTranscription)
                     }
 
                     // Model picker
@@ -130,7 +131,7 @@ struct ContentView: View {
                                     .font(.caption)
                             }
                         }
-                        .disabled(viewModel.isRecording)
+                        .disabled(viewModel.isRecording || viewModel.isStartingRecording || viewModel.isResolvingTranscription)
                     }
 
                     // Clear all button
@@ -161,6 +162,7 @@ struct ContentView: View {
 
                         FloatingRecordButton(
                             isRecording: viewModel.isRecording,
+                            isStarting: viewModel.isStartingRecording,
                             isResolving: viewModel.isResolvingTranscription,
                             isDisabled: viewModel.isLoadingModel,
                             isReduced: false,
@@ -333,6 +335,7 @@ struct TranscriptionView: View {
     let volatileText: String
     @Binding var editableText: String
     let isRecording: Bool
+    let isStartingRecording: Bool
     let isLoadingModel: Bool
     let isGeneratingResponse: Bool
     let isResolving: Bool
@@ -344,21 +347,69 @@ struct TranscriptionView: View {
 
     @FocusState private var isTextEditorFocused: Bool
 
+    private var isRecordingTransitioning: Bool {
+        isStartingRecording || isResolving
+    }
+
+    private var recordControlDisabled: Bool {
+        isLoadingModel || isRecordingTransitioning
+    }
+
     private var actionControlsDisabled: Bool {
         isLoadingModel || isGeneratingResponse
+    }
+
+    private var recordControlColor: Color {
+        if isLoadingModel {
+            return .gray
+        }
+        if isRecordingTransitioning {
+            return .orange
+        }
+        return isRecording ? .red : .blue
+    }
+
+    private var recordControlIconName: String {
+        if isRecordingTransitioning {
+            return "hourglass"
+        }
+        return isRecording ? "stop.fill" : "mic.fill"
+    }
+
+    private var headerTitle: String {
+        if isStartingRecording {
+            return "Starting..."
+        }
+        if isRecording {
+            return "Recording..."
+        }
+        if isResolving {
+            return "Finalizing..."
+        }
+        return "Transcription/prompt"
+    }
+
+    private var activeStateColor: Color {
+        if isRecording {
+            return .red
+        }
+        if isRecordingTransitioning {
+            return .orange
+        }
+        return .primary
     }
 
     var body: some View {
         VStack(spacing: 0) {
             // Header with clear and keyboard buttons
             HStack {
-                Image(systemName: isRecording ? "waveform" : "text.bubble")
-                    .foregroundStyle(isRecording ? .red : .secondary)
+                Image(systemName: isRecording ? "waveform" : (isRecordingTransitioning ? "hourglass" : "text.bubble"))
+                    .foregroundStyle(isRecording ? .red : (isRecordingTransitioning ? .orange : .secondary))
                     .symbolEffect(.pulse, isActive: isRecording)
 
-                Text(isRecording ? "Recording..." : "Transcription/prompt")
+                Text(headerTitle)
                     .font(.headline)
-                    .foregroundStyle(isRecording ? .red : .primary)
+                    .foregroundStyle(activeStateColor)
 
                 Spacer()
 
@@ -475,18 +526,18 @@ struct TranscriptionView: View {
                             } label: {
                                 ZStack {
                                     Circle()
-                                        .fill(isLoadingModel ? Color.gray : (isResolving ? Color.orange : (isRecording ? Color.red : Color.blue)))
+                                        .fill(recordControlColor)
                                         .frame(width: 50, height: 50)
                                         .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
 
-                                    Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                                    Image(systemName: recordControlIconName)
                                         .font(.system(size: 22))
                                         .foregroundStyle(.white)
-                                        .opacity(isLoadingModel ? 0.5 : 1.0)
+                                        .opacity(recordControlDisabled ? 0.6 : 1.0)
                                 }
                             }
                             .buttonStyle(.plain)
-                            .disabled(isLoadingModel)
+                            .disabled(recordControlDisabled)
                         }
 
                         Button {
@@ -534,18 +585,18 @@ struct TranscriptionView: View {
                         } label: {
                             ZStack {
                                 Circle()
-                                    .fill(isLoadingModel ? Color.gray : (isResolving ? Color.orange : (isRecording ? Color.red : Color.blue)))
+                                    .fill(recordControlColor)
                                     .frame(width: 50, height: 50)
                                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
 
-                                Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                                Image(systemName: recordControlIconName)
                                     .font(.system(size: 22))
                                     .foregroundStyle(.white)
-                                    .opacity(isLoadingModel ? 0.5 : 1.0)
+                                    .opacity(recordControlDisabled ? 0.6 : 1.0)
                             }
                         }
                         .buttonStyle(.plain)
-                        .disabled(isLoadingModel)
+                        .disabled(recordControlDisabled)
 
                         Spacer()
                     }
@@ -557,7 +608,7 @@ struct TranscriptionView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(isRecording ? Color.red.opacity(0.5) : Color.blue.opacity(0.3), lineWidth: 2)
+                .stroke(isRecording ? Color.red.opacity(0.5) : (isRecordingTransitioning ? Color.orange.opacity(0.5) : Color.blue.opacity(0.3)), lineWidth: 2)
         )
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
         .padding(.horizontal, 12)
