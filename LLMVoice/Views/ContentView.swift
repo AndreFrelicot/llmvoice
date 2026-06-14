@@ -615,10 +615,19 @@ struct SummariesListView: View {
                                 }
 
                                 // Streaming text
-                                Text(streamingState.partialText.isEmpty ? "Starting generation..." : streamingState.partialText)
+                                if streamingState.partialText.isEmpty {
+                                    Text("Starting generation...")
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                } else {
+                                    Text(CodeSyntaxHighlighter.highlightedGeneratedText(
+                                        streamingState.partialText,
+                                        maximumLength: 18_000
+                                    ))
                                     .font(.callout)
-                                    .foregroundStyle(streamingState.partialText.isEmpty ? .secondary : .primary)
                                     .textSelection(.enabled)
+                                }
                             }
                             .conversationListRowStyle()
                         } else if isProcessing {

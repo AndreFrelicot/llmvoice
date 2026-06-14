@@ -9,6 +9,390 @@ import Foundation
 import SwiftUI
 import WebKit
 
+enum CodeSyntaxHighlighter {
+    enum Language {
+        case html
+        case css
+        case javascript
+        case plain
+
+        static func fromFence(_ line: String) -> Language {
+            let language = line
+                .trimmingCharacters(in: .whitespaces)
+                .dropFirst(3)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            if language.contains("html") || language.contains("svg") || language.contains("xml") {
+                return .html
+            }
+            if language.contains("javascript") || language == "js" || language.contains("typescript") || language == "ts" {
+                return .javascript
+            }
+            if language.contains("css") {
+                return .css
+            }
+            return .plain
+        }
+    }
+
+    private enum Palette {
+        static let tag = Color(red: 0.36, green: 0.62, blue: 1.0)
+        static let attribute = Color(red: 0.86, green: 0.54, blue: 0.98)
+        static let string = Color(red: 0.46, green: 0.76, blue: 0.47)
+        static let comment = Color(red: 0.56, green: 0.58, blue: 0.64)
+        static let keyword = Color(red: 0.98, green: 0.62, blue: 0.34)
+        static let number = Color(red: 0.43, green: 0.78, blue: 0.88)
+        static let punctuation = Color(red: 0.72, green: 0.73, blue: 0.78)
+        static let fence = Color(red: 0.56, green: 0.58, blue: 0.64)
+    }
+
+    private static let javascriptKeywords: Set<String> = [
+        "await", "break", "case", "catch", "class", "const", "continue", "default",
+        "delete", "do", "else", "export", "extends", "false", "finally", "for",
+        "function", "if", "import", "in", "instanceof", "let", "new", "null",
+        "return", "switch", "this", "throw", "true", "try", "typeof", "undefined",
+        "var", "void", "while", "with", "yield"
+    ]
+
+    private static let cssKeywords: Set<String> = [
+        "absolute", "auto", "block", "bold", "border-box", "center", "flex", "fixed",
+        "grid", "hidden", "inline", "none", "relative", "solid", "transparent"
+    ]
+
+    static func highlightedGeneratedText(_ text: String, maximumLength: Int = 40_000) -> AttributedString {
+        guard text.count <= maximumLength else {
+            return AttributedString(text)
+        }
+
+        let lines = text.components(separatedBy: .newlines)
+        var result = AttributedString()
+        var isInsideFence = false
+        var fencedLanguage: Language = .plain
+        var embeddedLanguage: Language = .plain
+
+        for (index, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.hasPrefix("```") {
+                if isInsideFence {
+                    isInsideFence = false
+                    fencedLanguage = .plain
+                } else {
+                    isInsideFence = true
+                    fencedLanguage = Language.fromFence(trimmed)
+                }
+
+                result += styled(line, color: Palette.fence)
+            } else if isInsideFence {
+                result += highlightedLine(line, language: fencedLanguage)
+            } else if embeddedLanguage != .plain {
+                result += highlightedEmbeddedLine(line, language: embeddedLanguage)
+
+                if closesEmbeddedLanguage(line, language: embeddedLanguage) {
+                    embeddedLanguage = .plain
+                }
+            } else if looksLikeMarkup(line) {
+                result += highlightedLine(line, language: .html)
+
+                if opensEmbeddedLanguage(line, language: .javascript) {
+                    embeddedLanguage = .javascript
+                } else if opensEmbeddedLanguage(line, language: .css) {
+                    embeddedLanguage = .css
+                }
+            } else if let inlineLanguage = detectedInlineCodeLanguage(for: line) {
+                result += highlightedLine(line, language: inlineLanguage)
+            } else {
+                result += AttributedString(line)
+            }
+
+            if index < lines.count - 1 {
+                result += AttributedString("\n")
+            }
+        }
+
+        return result
+    }
+
+    static func highlightedSourceLines(_ source: String, maximumLength: Int = 120_000) -> [AttributedString] {
+        let lines = source.components(separatedBy: .newlines)
+        guard source.count <= maximumLength else {
+            return lines.map { AttributedString($0.isEmpty ? " " : $0) }
+        }
+
+        var currentLanguage: Language = .html
+
+        return lines.map { line in
+            let visibleLine = line.isEmpty ? " " : line
+            let highlighted = currentLanguage == .html
+                ? highlightedLine(visibleLine, language: .html)
+                : highlightedEmbeddedLine(visibleLine, language: currentLanguage)
+
+            if currentLanguage == .html && opensEmbeddedLanguage(line, language: .javascript) {
+                currentLanguage = .javascript
+            } else if currentLanguage == .html && opensEmbeddedLanguage(line, language: .css) {
+                currentLanguage = .css
+            } else if currentLanguage != .html && closesEmbeddedLanguage(line, language: currentLanguage) {
+                currentLanguage = .html
+            }
+
+            return highlighted
+        }
+    }
+
+    static func highlightedLine(_ line: String, language: Language) -> AttributedString {
+        switch language {
+        case .html:
+            return highlightedHTMLLine(line)
+        case .css:
+            return highlightedCodeLine(line, keywords: cssKeywords, allowsLineComments: false)
+        case .javascript:
+            return highlightedCodeLine(line, keywords: javascriptKeywords, allowsLineComments: true)
+        case .plain:
+            return AttributedString(line)
+        }
+    }
+
+    private static func highlightedHTMLLine(_ line: String) -> AttributedString {
+        var result = AttributedString()
+        var index = line.startIndex
+
+        while index < line.endIndex {
+            if line[index...].hasPrefix("<!--") {
+                let end = line[index...].range(of: "-->")?.upperBound ?? line.endIndex
+                result += styled(String(line[index..<end]), color: Palette.comment)
+                index = end
+            } else if line[index] == "<" {
+                let end = line[index...].firstIndex(of: ">").map { line.index(after: $0) } ?? line.endIndex
+                result += highlightedTag(String(line[index..<end]))
+                index = end
+            } else {
+                let end = line[index...].firstIndex(of: "<") ?? line.endIndex
+                result += AttributedString(String(line[index..<end]))
+                index = end
+            }
+        }
+
+        return result
+    }
+
+    private static func highlightedTag(_ tag: String) -> AttributedString {
+        var result = AttributedString()
+        var index = tag.startIndex
+        var hasSeenTagName = false
+
+        while index < tag.endIndex {
+            let character = tag[index]
+
+            if character == "\"" || character == "'" {
+                let end = quotedRangeEnd(in: tag, from: index, quote: character)
+                result += styled(String(tag[index..<end]), color: Palette.string)
+                index = end
+            } else if isTagPunctuation(character) {
+                result += styled(String(character), color: Palette.punctuation)
+                index = tag.index(after: index)
+            } else if character.isWhitespace {
+                result += AttributedString(String(character))
+                index = tag.index(after: index)
+            } else {
+                let end = tag[index...].firstIndex { char in
+                    char.isWhitespace || isTagPunctuation(char) || char == "\"" || char == "'"
+                } ?? tag.endIndex
+                let token = String(tag[index..<end])
+                let isTagName = !hasSeenTagName && token != "!" && !token.hasPrefix("!")
+                result += styled(token, color: isTagName ? Palette.tag : Palette.attribute)
+                hasSeenTagName = hasSeenTagName || isTagName
+                index = end
+            }
+        }
+
+        return result
+    }
+
+    private static func highlightedCodeLine(
+        _ line: String,
+        keywords: Set<String>,
+        allowsLineComments: Bool
+    ) -> AttributedString {
+        var result = AttributedString()
+        var index = line.startIndex
+
+        while index < line.endIndex {
+            let character = line[index]
+
+            if allowsLineComments && line[index...].hasPrefix("//") {
+                result += styled(String(line[index..<line.endIndex]), color: Palette.comment)
+                break
+            }
+
+            if line[index...].hasPrefix("/*") {
+                let end = line[index...].range(of: "*/")?.upperBound ?? line.endIndex
+                result += styled(String(line[index..<end]), color: Palette.comment)
+                index = end
+            } else if character == "\"" || character == "'" || character == "`" {
+                let end = quotedRangeEnd(in: line, from: index, quote: character)
+                result += styled(String(line[index..<end]), color: Palette.string)
+                index = end
+            } else if isIdentifierStart(character) {
+                let end = line[index...].firstIndex { !isIdentifierCharacter($0) } ?? line.endIndex
+                let token = String(line[index..<end])
+                if keywords.contains(token) {
+                    result += styled(token, color: Palette.keyword)
+                } else if nextNonWhitespaceCharacter(after: end, in: line) == ":" {
+                    result += styled(token, color: Palette.attribute)
+                } else {
+                    result += AttributedString(token)
+                }
+                index = end
+            } else if character.isNumber {
+                let end = line[index...].firstIndex { !$0.isNumber && $0 != "." } ?? line.endIndex
+                result += styled(String(line[index..<end]), color: Palette.number)
+                index = end
+            } else if isCodePunctuation(character) {
+                result += styled(String(character), color: Palette.punctuation)
+                index = line.index(after: index)
+            } else {
+                result += AttributedString(String(character))
+                index = line.index(after: index)
+            }
+        }
+
+        return result
+    }
+
+    private static func highlightedEmbeddedLine(_ line: String, language: Language) -> AttributedString {
+        let closingTag = language == .css ? "</style" : "</script"
+        guard let closingRange = line.range(of: closingTag, options: [.caseInsensitive]) else {
+            return highlightedLine(line, language: language)
+        }
+
+        var result = AttributedString()
+        let code = String(line[..<closingRange.lowerBound])
+        let closingMarkup = String(line[closingRange.lowerBound...])
+        result += highlightedLine(code, language: language)
+        result += highlightedHTMLLine(closingMarkup)
+        return result
+    }
+
+    private static func styled(_ text: String, color: Color) -> AttributedString {
+        var attributed = AttributedString(text)
+        attributed.foregroundColor = color
+        return attributed
+    }
+
+    private static func looksLikeMarkup(_ line: String) -> Bool {
+        line.contains("<") && line.contains(">")
+    }
+
+    private static func opensEmbeddedLanguage(_ line: String, language: Language) -> Bool {
+        switch language {
+        case .javascript:
+            return line.range(of: "<script", options: [.caseInsensitive]) != nil
+                && line.range(of: "</script", options: [.caseInsensitive]) == nil
+        case .css:
+            return line.range(of: "<style", options: [.caseInsensitive]) != nil
+                && line.range(of: "</style", options: [.caseInsensitive]) == nil
+        case .html, .plain:
+            return false
+        }
+    }
+
+    private static func closesEmbeddedLanguage(_ line: String, language: Language) -> Bool {
+        switch language {
+        case .javascript:
+            return line.range(of: "</script", options: [.caseInsensitive]) != nil
+        case .css:
+            return line.range(of: "</style", options: [.caseInsensitive]) != nil
+        case .html, .plain:
+            return false
+        }
+    }
+
+    private static func detectedInlineCodeLanguage(for line: String) -> Language? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3 else { return nil }
+
+        if trimmed.hasPrefix("//")
+            || trimmed.hasPrefix("const ")
+            || trimmed.hasPrefix("let ")
+            || trimmed.hasPrefix("var ")
+            || trimmed.hasPrefix("function ")
+            || trimmed.hasPrefix("return ")
+            || trimmed.hasPrefix("if ")
+            || trimmed.hasPrefix("for ")
+            || trimmed.hasPrefix("while ")
+            || trimmed.contains("=>")
+            || trimmed.contains("document.")
+            || trimmed.contains("window.")
+            || trimmed.contains("canvas.")
+            || trimmed.contains("ctx.")
+            || trimmed.contains("Math.")
+            || trimmed.contains("requestAnimationFrame(") {
+            return .javascript
+        }
+
+        let looksLikeCallStatement = trimmed.hasSuffix(";")
+            && trimmed.contains("(")
+            && trimmed.contains(")")
+            && !trimmed.contains(" ")
+
+        return looksLikeCallStatement ? .javascript : nil
+    }
+
+    private static func quotedRangeEnd(in text: String, from start: String.Index, quote: Character) -> String.Index {
+        var index = text.index(after: start)
+        var isEscaped = false
+
+        while index < text.endIndex {
+            let character = text[index]
+            let next = text.index(after: index)
+
+            if character == "\\" && !isEscaped {
+                isEscaped = true
+                index = next
+                continue
+            }
+
+            if character == quote && !isEscaped {
+                return next
+            }
+
+            isEscaped = false
+            index = next
+        }
+
+        return text.endIndex
+    }
+
+    private static func nextNonWhitespaceCharacter(after index: String.Index, in text: String) -> Character? {
+        var cursor = index
+        while cursor < text.endIndex {
+            let character = text[cursor]
+            if !character.isWhitespace {
+                return character
+            }
+            cursor = text.index(after: cursor)
+        }
+        return nil
+    }
+
+    private static func isTagPunctuation(_ character: Character) -> Bool {
+        character == "<" || character == ">" || character == "/" || character == "="
+    }
+
+    private static func isCodePunctuation(_ character: Character) -> Bool {
+        "{}[]();:,.<>=+-*/%!&|?".contains(character)
+    }
+
+    private static func isIdentifierStart(_ character: Character) -> Bool {
+        character == "_" || character == "-" || character.isLetter
+    }
+
+    private static func isIdentifierCharacter(_ character: Character) -> Bool {
+        isIdentifierStart(character) || character.isNumber
+    }
+}
+
 struct SummaryRow: View {
     let summary: Summary
 
@@ -163,9 +547,8 @@ struct SummaryRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
 
-                Text(displayedContent)
+                Text(CodeSyntaxHighlighter.highlightedGeneratedText(displayedContent, maximumLength: 60_000))
                     .font(.callout)
-                    .foregroundStyle(.primary)
                     .lineLimit(isCompact ? 3 : nil)
                     .textSelection(.enabled)
             }
@@ -972,21 +1355,30 @@ private struct SourceCodeView: View {
         return splitLines.isEmpty ? [""] : splitLines
     }
 
+    private var highlightedLines: [AttributedString] {
+        CodeSyntaxHighlighter.highlightedSourceLines(source)
+    }
+
     var body: some View {
+        let sourceLines = lines
+        let highlightedSourceLines = highlightedLines
+
         GeometryReader { geometry in
             ScrollView([.horizontal, .vertical]) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                    ForEach(Array(sourceLines.enumerated()), id: \.offset) { index, line in
                         let lineNumber = index + 1
+                        let highlightedLine = highlightedSourceLines.indices.contains(index)
+                            ? highlightedSourceLines[index]
+                            : AttributedString(line.isEmpty ? " " : line)
                         HStack(alignment: .top, spacing: 10) {
                             Text("\(lineNumber)")
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 44, alignment: .trailing)
 
-                            Text(line.isEmpty ? " " : line)
+                            Text(highlightedLine)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.primary)
                                 .lineLimit(1)
                                 .fixedSize(horizontal: true, vertical: false)
                                 .textSelection(.enabled)
